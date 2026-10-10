@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://example.com/purchase"
+           xmlns:po="http://example.com/purchase"
+           elementFormDefault="qualified">
+
+    <!-- Simple type with enumeration -->
+    <xs:simpleType name="USState">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AK"/>
+            <xs:enumeration value="AL"/>
+            <xs:enumeration value="AR"/>
+            <xs:enumeration value="CA"/>
+            <xs:enumeration value="NY"/>
+            <xs:enumeration value="TX"/>
+            <xs:enumeration value="WA"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Simple type with pattern -->
+    <xs:simpleType name="SKU">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="\d{3}-[A-Z]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Simple type with range -->
+    <xs:simpleType name="Quantity">
+        <xs:restriction base="xs:positiveInteger">
+            <xs:maxInclusive value="9999"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Complex type: address -->
+    <xs:complexType name="USAddress">
+        <xs:sequence>
+            <xs:element name="name" type="xs:string"/>
+            <xs:element name="street" type="xs:string"/>
+            <xs:element name="city" type="xs:string"/>
+            <xs:element name="state" type="po:USState"/>
+            <xs:element name="zip" type="xs:decimal"/>
+        </xs:sequence>
+        <xs:attribute name="country" type="xs:NMTOKEN" fixed="US"/>
+    </xs:complexType>
+
+    <!-- Complex type with extension -->
+    <xs:complexType name="UKAddress">
+        <xs:complexContent>
+            <xs:extension base="po:USAddress">
+                <xs:sequence>
+                    <xs:element name="county" type="xs:string" minOccurs="0"/>
+                    <xs:element name="postcode" type="xs:string"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <!-- Complex type: line item -->
+    <xs:complexType name="Item">
+        <xs:sequence>
+            <xs:element name="productName" type="xs:string"/>
+            <xs:element name="quantity" type="po:Quantity"/>
+            <xs:element name="USPrice" type="xs:decimal"/>
+            <xs:element name="comment" type="xs:string" minOccurs="0"/>
+            <xs:element name="shipDate" type="xs:date" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="partNum" type="po:SKU" use="required"/>
+    </xs:complexType>
+
+    <!-- Complex type: items container -->
+    <xs:complexType name="Items">
+        <xs:sequence>
+            <xs:element name="item" type="po:Item" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Complex type: purchase order -->
+    <xs:complexType name="PurchaseOrderType">
+        <xs:sequence>
+            <xs:element name="shipTo" type="po:USAddress"/>
+            <xs:element name="billTo" type="po:USAddress"/>
+            <xs:element name="comment" type="xs:string" minOccurs="0"/>
+            <xs:element name="items" type="po:Items"/>
+        </xs:sequence>
+        <xs:attribute name="orderDate" type="xs:date"/>
+    </xs:complexType>
+
+    <!-- Global element -->
+    <xs:element name="purchaseOrder" type="po:PurchaseOrderType"/>
+
+    <!-- Another global element for testing -->
+    <xs:element name="comment" type="xs:string"/>
+
+</xs:schema>

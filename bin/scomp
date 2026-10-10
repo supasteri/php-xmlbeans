@@ -1,0 +1,197 @@
+#!/usr/bin/env php
+<?php
+/**
+ * scomp - Schema Compiler for PHP XMLBeans
+ *
+ * Compiles XML Schema (.xsd) files into PHP classes with typed accessors.
+ * Equivalent to the scomp tool in Apache XMLBeans.
+ *
+ * Usage:
+ *   php scomp [options] schema1.xsd [schema2.xsd ...]
+ *
+ * Options:
+ *   -d <dir>     Output directory for generated classes (default: ./generated)
+ *   -n <ns>      PHP namespace for generated classes (default: Generated)
+ *   -s <name>    Type system name (default: compiled)
+ *   -v           Verbose output
+ *   -h           Show help
+ */
+
+// Autoloader
+$autoloaders = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+
+$loaded = false;
+foreach ($autoloaders as $autoloader) {
+    if (file_exists($autoloader)) {
+        require_once $autoloader;
+        $loaded = true;
+        break;
+    }
+}
+
+if (!$loaded) {
+    // Fallback: simple PSR-4 autoloader
+    spl_autoload_register(function ($class) {
+        $prefix = 'XmlBeans\\';
+        $baseDir = __DIR__ . '/../src/';
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+        $relativeClass = substr($class, $len);
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
+
+use XmlBeans\Compiler\SchemaCompiler;
+use XmlBeans\Compiler\PhpCodeGenerator;
+
+// Parse arguments
+$options = [
+    'outputDir' => './generated',
+    'namespace' => 'Generated',
+    'systemName' => 'compiled',
+    'verbose' => false,
+    'schemas' => [],
+];
+
+$args = array_slice($argv, 1);
+$i = 0;
+while ($i < count($args)) {
+    $arg = $args[$i];
+    switch ($arg) {
+        case '-d':
+            $i++;
+            $options['outputDir'] = $args[$i];
+            break;
+        case '-n':
+            $i++;
+            $options['namespace'] = $args[$i];
+            break;
+        case '-s':
+            $i++;
+            $options['systemName'] = $args[$i];
+            break;
+        case '-v':
+            $options['verbose'] = true;
+            break;
+        case '-h':
+        case '--help':
+            printHelp();
+            exit(0);
+        default:
+            if (substr($arg, 0, 1) === '-') {
+                fwrite(STDERR, "Unknown option: $arg\n");
+                exit(1);
+            }
+            $options['schemas'][] = $arg;
+            break;
+    }
+    $i++;
+}
+
+if (empty($options['schemas'])) {
+    fwrite(STDERR, "Error: No schema files specified.\n\n");
+    printHelp();
+    exit(1);
+}
+
+// Validate schema files exist
+foreach ($options['schemas'] as $schema) {
+    if (!file_exists($schema)) {
+        fwrite(STDERR, "Error: Schema file not found: $schema\n");
+        exit(1);
+    }
+}
+
+// Compile
+if ($options['verbose']) {
+    echo "PHP XMLBeans Schema Compiler (scomp)\n";
+    echo "====================================\n\n";
+    echo "Schemas: " . implode(', ', $options['schemas']) . "\n";
+    echo "Output:  {$options['outputDir']}\n";
+    echo "Namespace: {$options['namespace']}\n\n";
+}
+
+try {
+    $compiler = new SchemaCompiler();
+
+    if ($options['verbose']) {
+        echo "Compiling schemas...\n";
+    }
+
+    if (count($options['schemas']) === 1) {
+        $typeSystem = $compiler->compile($options['schemas'][0], $options['systemName']);
+    } else {
+        $typeSystem = $compiler->compileMultiple($options['schemas'], $options['systemName']);
+    }
+
+    $errors = $compiler->getErrors();
+    if (!empty($errors)) {
+        foreach ($errors as $error) {
+            fwrite(STDERR, "  " . $error . "\n");
+        }
+    }
+
+    $globalTypes = $typeSystem->getGlobalTypes();
+    $docTypes = $typeSystem->getDocumentTypes();
+
+    if ($options['verbose']) {
+        echo "  Found " . count($globalTypes) . " global type(s)\n";
+        echo "  Found " . count($docTypes) . " document type(s)\n\n";
+    }
+
+    // Generate PHP classes
+    if ($options['verbose']) {
+        echo "Generating PHP classes...\n";
+    }
+
+    $generator = new PhpCodeGenerator($typeSystem);
+    $files = $generator->generate($options['outputDir'], $options['namespace']);
+
+    if ($options['verbose']) {
+        echo "  Generated " . count($files) . " file(s):\n";
+        foreach ($files as $file) {
+            echo "    - $file\n";
+        }
+    }
+
+    echo "\nDone. Generated " . count($files) . " class(es) in {$options['outputDir']}/\n";
+
+} catch (\Exception $e) {
+    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+    if ($options['verbose']) {
+        fwrite(STDERR, $e->getTraceAsString() . "\n");
+    }
+    exit(1);
+}
+
+function printHelp()
+{
+    echo <<<HELP
+PHP XMLBeans Schema Compiler (scomp)
+
+Compiles XML Schema (.xsd) files into PHP classes with typed accessors.
+
+Usage:
+  php scomp [options] schema1.xsd [schema2.xsd ...]
+
+Options:
+  -d <dir>     Output directory for generated classes (default: ./generated)
+  -n <ns>      PHP namespace for generated classes (default: Generated)
+  -s <name>    Type system name (default: compiled)
+  -v           Verbose output
+  -h           Show this help
+
+Examples:
+  php scomp -d src/Generated -n App\\Schema my-schema.xsd
+  php scomp -v -d output common.xsd types.xsd
+
+HELP;
+}
