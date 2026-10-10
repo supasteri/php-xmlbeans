@@ -1,0 +1,14 @@
+PHP XMLBeans
+Copyright 2025 A1L Digital
+
+This product is a PHP port of Apache XMLBeans, whose architecture,
+API design, and documentation informed this implementation.
+
+Apache XMLBeans
+Copyright 2004-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+Portions of Apache XMLBeans were originally based on software
+copyright (c) 2000-2003, BEA Systems, <http://www.bea.com/>.
