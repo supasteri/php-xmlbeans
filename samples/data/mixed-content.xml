@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inventory>
+    <item sku="SKU-001">
+        This is a <b>premium</b> quality widget, available in
+        <color>red</color>, <color>blue</color>, and <color>green</color>.
+        Order now for <i>free shipping</i>!
+    </item>
+    <item sku="SKU-002">
+        The <b>standard</b> gadget comes with a
+        <warranty>2-year</warranty> guarantee.
+    </item>
+</inventory>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://example.com/todolist"
+           targetNamespace="http://example.com/todolist"
+           elementFormDefault="qualified">
+
+    <xs:element name="todolist">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="item" type="tns:todoItem" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="todoItem">
+        <xs:sequence>
+            <xs:element name="name" type="xs:string"/>
+            <xs:element name="description" type="xs:string"/>
+            <xs:element name="due-date" type="xs:date"/>
+            <xs:element name="status" type="tns:statusType"/>
+        </xs:sequence>
+        <xs:attribute name="priority" type="tns:priorityType" use="required"/>
+    </xs:complexType>
+
+    <xs:simpleType name="statusType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="pending"/>
+            <xs:enumeration value="in-progress"/>
+            <xs:enumeration value="completed"/>
+            <xs:enumeration value="cancelled"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="priorityType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="low"/>
+            <xs:enumeration value="medium"/>
+            <xs:enumeration value="high"/>
+            <xs:enumeration value="critical"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>

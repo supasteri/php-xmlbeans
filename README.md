@@ -4,6 +4,35 @@ A PHP port of [Apache XMLBeans](https://xmlbeans.apache.org/) — an XML-Schema-
 
 **Requirements:** PHP >= 7.2, ext-dom, ext-libxml, ext-simplexml, ext-bcmath
 
+## The Problem
+
+XML is everywhere in enterprise systems — SOAP services, EDI, configuration, data interchange — and working with it in PHP typically means one of two painful paths:
+
+1. **SimpleXML / DOMDocument** — You get raw nodes with no type safety. An element that should be an integer comes back as a string. A missing required element is discovered at runtime, deep in business logic, not at parse time. Refactoring an XSD breaks nothing visibly until production.
+
+2. **Manual mapping classes** — You hand-write dozens of PHP classes with `fromXml()` / `toXml()` methods, maintaining them by hand every time the schema changes. This is tedious, error-prone, and falls out of sync.
+
+XMLBeans eliminates both problems.
+
+## What XMLBeans Does
+
+XMLBeans compiles XML Schema (XSD) definitions into a strongly-typed PHP object model. The schema *is* the source of truth, and the generated code enforces it.
+
+Given a schema like:
+
+```xml
+<xs:complexType name="PurchaseOrder">
+  <xs:sequence>
+    <xs:element name="customer" type="xs:string"/>
+    <xs:element name="total" type="xs:decimal"/>
+    <xs:element name="date" type="xs:date"/>
+    <xs:element name="items" type="tns:ItemList"/>
+  </xs:sequence>
+</xs:complexType>
+```
+
+You get PHP classes where `$order->getTotal()` returns a proper decimal, `$order->getDate()` returns a date, and validation happens automatically against all 46 XSD built-in types and their facets (patterns, enumerations, ranges, lengths).
+
 ## Installation
 
 ```bash
@@ -33,27 +62,28 @@ $obj = XmlBeans::parse('<order><item>Widget</item><qty>5</qty></order>');
 $items = $obj->selectPath('//item');
 echo $items[0]->getStringValue(); // "Widget"
 
+// Scalar accessors
+echo $obj->selectPathString('//item');       // "Widget"
+echo $obj->selectPathNumber('//qty');         // 5
+echo $obj->selectPathBoolean('//item');       // true
+
 // Cursor-based navigation
 $cursor = $obj->newCursor();
 $cursor->toFirstChild(); // <order>
 $cursor->toChild('qty');
 echo $cursor->getTextValue(); // "5"
 $cursor->setTextValue('10');
-
-// Save
-$obj->save('/tmp/order.xml');
 ```
 
 ### 2. Compile an XSD schema
 
 ```php
-use XmlBeans\XmlBeans;
-
-// Compile schema
 $typeSystem = XmlBeans::compileXsd('purchase-order.xsd');
 
 // Inspect the type system
-$addressType = $typeSystem->findType(new \XmlBeans\Common\QName('http://example.com', 'USAddress'));
+$addressType = $typeSystem->findType(
+    new \XmlBeans\Common\QName('http://example.com', 'USAddress')
+);
 foreach ($addressType->getElementProperties() as $prop) {
     echo $prop->getName()->getLocalPart() . ': '
        . ($prop->isRequired() ? 'required' : 'optional') . "\n";
@@ -62,8 +92,6 @@ foreach ($addressType->getElementProperties() as $prop) {
 
 ### 3. Generate typed PHP classes (scomp)
 
-From the command line:
-
 ```bash
 php bin/scomp -d src/Generated -n App\\Schema -v purchase-order.xsd
 ```
@@ -71,7 +99,6 @@ php bin/scomp -d src/Generated -n App\\Schema -v purchase-order.xsd
 This generates classes like:
 
 ```php
-// Generated: src/Generated/USAddress.php
 namespace App\Schema;
 
 class USAddress extends XmlObjectBase
@@ -83,41 +110,21 @@ class USAddress extends XmlObjectBase
     public function getCity() { ... }
     public function isSetCity() { ... }
     public function unsetCity() { ... }
-    // ...
 }
-```
-
-Or programmatically:
-
-```php
-use XmlBeans\Compiler\SchemaCompiler;
-use XmlBeans\Compiler\PhpCodeGenerator;
-
-$compiler = new SchemaCompiler();
-$typeSystem = $compiler->compile('schema.xsd');
-
-$generator = new PhpCodeGenerator($typeSystem);
-$files = $generator->generate('./src/Generated', 'App\\Schema');
 ```
 
 ### 4. Validate XML
 
 ```php
-use XmlBeans\XmlBeans;
-use XmlBeans\XmlOptions;
-
 // Quick validation against XSD
 $valid = XmlBeans::validate($xmlString, $xsdString);
 
 // Validation with error collection
-$obj = XmlBeans::parse($xml);
-$obj->setSchemaType($myType);
-
 $errors = [];
 $opts = (new XmlOptions())->setErrorCollection($errors);
 if (!$obj->validate($opts)) {
     foreach ($errors as $err) {
-        echo $err . "\n"; // "[element:5] error: Value 'xyz' not in enumeration"
+        echo $err . "\n";
     }
 }
 
@@ -127,24 +134,7 @@ $opts->addErrorListener(function(\XmlBeans\XmlError $err) {
 });
 ```
 
-### 5. Use typed simple types
-
-```php
-use XmlBeans\Type;
-
-$xml = '<price>19.99</price>';
-$obj = XmlBeans::parse($xml);
-$price = new Type\XmlDecimal($obj->getDomNode()->documentElement);
-echo $price->getValue(); // float: 19.99
-
-$date = new Type\XmlDate($dateNode);
-$dt = $date->getValue(); // \DateTime instance
-
-$bool = new Type\XmlBoolean($flagNode);
-echo $bool->getValue(); // true/false
-```
-
-### 6. XmlCursor — fine-grained navigation
+### 5. XmlCursor — fine-grained navigation
 
 ```php
 $cursor = $obj->newCursor();
@@ -154,14 +144,12 @@ $cursor->toFirstChild();
 $cursor->toNextSibling();
 $cursor->toChild('address');
 $cursor->toParent();
-$cursor->toLastChild();
 
 // Read/write
 echo $cursor->getName()->getLocalPart();
 echo $cursor->getTextValue();
 $cursor->setTextValue('new value');
 $cursor->getAttributeText('id');
-$cursor->setAttributeText('id', '42');
 
 // Modify structure
 $cursor->beginElement('newChild');
@@ -177,6 +165,111 @@ $cursor->toBookmark('my-position'); // jump back
 while ($cursor->toNextToken() !== \XmlBeans\Cursor\XmlCursor::TOKEN_NONE) {
     echo XmlCursor::tokenTypeName($cursor->currentTokenType()) . "\n";
 }
+```
+
+## XPath — A Complete Subsystem
+
+XPath isn't bolted on as an afterthought. It's a complete subsystem with five dedicated classes, integrated throughout the library.
+
+### Features
+
+- **Typed results** — XPath queries return `XmlObject` instances, not raw DOM nodes
+- **Fluent expression builder** — Construct XPath with axis methods, predicates, and operators
+- **Fluent predicate builder** — Comparison, logical, and string function predicates with proper escaping
+- **Compiled & cached expressions** — Parse once, execute many; LRU cache with configurable size
+- **Variable binding** — Bind PHP values with type-aware escaping
+- **Namespace-aware** — Auto-detection from documents, manual registration, well-known namespace sets
+- **Custom PHP functions** — Register any callable and invoke it from XPath
+- **Scalar accessors** — `selectString()`, `selectNumber()`, `selectBoolean()`, `selectStrings()`
+- **Convenience methods** — `count()`, `exists()`, `selectFirst()`, `selectChildren()`
+- **Cursor integration** — Execute XPath from any cursor position
+- **Expression analysis** — `isAbsolute()`, `hasPredicate()`, `hasVariables()`, `getVariableNames()`
+- **Union support** — Combine paths with the `|` operator
+
+### XPath Builder — Fluent API
+
+```php
+use XmlBeans\XPath\XPathBuilder;
+
+// //item[@price > 100]
+$xpath = XPathBuilder::create()
+    ->descendant('item')
+    ->where(XPathBuilder::attr('price')->gt(100))
+    ->build();
+
+// //item[price > 50 and category = 'tools']/name
+$xpath = XPathBuilder::create()
+    ->descendant('item')
+    ->where(
+        XPathBuilder::elem('price')->gt(50)
+            ->andPred(XPathBuilder::elem('category')->eq('tools'))
+    )
+    ->child('name')
+    ->build();
+
+// Union: //name | //price
+$xpath = XPathBuilder::create()
+    ->descendant('name')
+    ->union(XPathBuilder::create()->descendant('price'))
+    ->build();
+
+// Namespace-prefixed: /soap:Envelope/soap:Body/*
+$xpath = XPathBuilder::create()
+    ->root()
+    ->nsChild('soap', 'Envelope')
+    ->nsChild('soap', 'Body')
+    ->any()
+    ->build();
+```
+
+### Compiled Expressions with Variables
+
+```php
+use XmlBeans\XPath\XPathExpression;
+
+$expr = XPathExpression::compile('//item[price > $minPrice and @category = $cat]');
+$expr->bindVariable('minPrice', 50);
+$expr->bindVariable('cat', 'electronics');
+
+$results = $engine->selectTyped($expr->getNormalizedExpression());
+
+// Rebind and reuse
+$expr->clearVariables();
+$expr->bindVariable('minPrice', 200);
+```
+
+### XPath Engine
+
+```php
+use XmlBeans\XPath\XPathEngine;
+
+$engine = XPathEngine::fromXml($xml);
+
+$items = $engine->selectTyped('//item');
+$first = $engine->selectFirst('//item');
+$names = $engine->selectStrings('//item/name');
+$count = $engine->count('//item');
+$exists = $engine->exists('//shipper');
+```
+
+### Custom PHP Functions
+
+```php
+$engine->registerFunction('discount', function ($price, $pct) {
+    return (float) $price * (1 - (float) $pct / 100);
+});
+```
+
+### Namespace Management
+
+```php
+use XmlBeans\XPath\XPathNamespaceContext;
+
+$ctx = new XPathNamespaceContext();
+$ctx->registerNamespace('po', 'http://openuri.org/easypo');
+$ctx->loadFromDocument($domDocument);           // Auto-detect
+$ctx->registerSchemaNamespaces();                // xs, xsi
+$engine->setNamespaceContext($ctx);
 ```
 
 ## Architecture
@@ -195,6 +288,11 @@ while ($cursor->toNextToken() !== \XmlBeans\Cursor\XmlCursor::TOKEN_NONE) {
 | `PhpCodeGenerator` | Type system → PHP classes | scomp codegen |
 | `Validator` | Schema validation | Validation subsystem |
 | `TypeMapper` | Type → PHP class resolver | Type binding |
+| `XPathEngine` | Advanced XPath with typed results | XPath subsystem |
+| `XPathBuilder` | Fluent XPath construction | N/A (PHP XMLBeans exclusive) |
+| `XPathExpression` | Compiled/cached XPath with variables | N/A (PHP XMLBeans exclusive) |
+| `XPathPredicate` | Fluent predicate builder | N/A (PHP XMLBeans exclusive) |
+| `XPathNamespaceContext` | Namespace prefix management | N/A (PHP XMLBeans exclusive) |
 
 ### Built-in Simple Types
 
@@ -227,11 +325,77 @@ All 46 XSD built-in types are supported with typed wrappers:
 - Default and fixed values
 - Document types for global elements
 
+## Comparison
+
+| Capability | DOMDocument | SimpleXML | XMLBeans |
+|---|---|---|---|
+| Type-safe access | No | No | Yes |
+| Schema compilation | No | No | Yes |
+| Code generation | No | No | Yes |
+| Facet validation | No | No | Yes |
+| XPath + typed results | No | No | Yes |
+| Cursor navigation | No | No | Yes |
+| Namespace management | Manual | Partial | Automatic |
+| Content model awareness | No | No | Yes |
+| PHP 7.2 compatible | Yes | Yes | Yes |
+
+## Who Needs This
+
+- **SOAP/WSDL integrations** — Parse and generate compliant messages with confidence
+- **EDI/B2B data exchange** — Enforce partner schemas at the code level
+- **Configuration systems** — Validate complex config files against their XSD
+- **Document processing** — Transform, validate, and route XML documents in workflows
+- **Legacy system integration** — Bridge XML-heavy enterprise systems with modern PHP applications
+
+## Samples
+
+Working code examples are in the [`samples/`](samples/) directory:
+
+| Sample | Description |
+|---|---|
+| [GettingStarted](samples/GettingStarted.php) | End-to-end tutorial: parse, query, compile, validate |
+| [XPathQuery](samples/XPathQuery.php) | Comprehensive XPath: builder, engine, expressions, functions |
+| [CursorNavigation](samples/CursorNavigation.php) | Cursor navigation, editing, bookmarks, push/pop |
+| [Validation](samples/Validation.php) | Schema validation with error handling |
+| [DateTime](samples/DateTime.php) | XSD date, time, dateTime, and duration types |
+| [SchemaEnum](samples/SchemaEnum.php) | Schema enumerations |
+| [MixedContent](samples/MixedContent.php) | Mixed content handling with cursors |
+| [OrderMatters](samples/OrderMatters.php) | Document order vs typed access |
+| [HandlingAny](samples/HandlingAny.php) | xs:any wildcard content |
+| [BuiltinTypes](samples/BuiltinTypes.php) | The 46 built-in type wrappers |
+| [XmlTree](samples/XmlTree.php) | XML tree visualization |
+
+Run any sample:
+
+```bash
+php samples/GettingStarted.php
+```
+
+## Documentation
+
+Full documentation is in [`docs/guide/`](docs/guide/):
+
+- [Getting Started](docs/guide/GettingStarted.md) — Introduction and tutorial
+- [Schema Type System](docs/guide/SchemaTypeSystem.md) — Type system architecture
+- [Generated Types](docs/guide/GeneratedTypes.md) — Schema-to-PHP mapping
+- [Built-in Types](docs/guide/BuiltinTypes.md) — All 46 XSD type mappings
+- [Validation](docs/guide/Validation.md) — Validation and error handling
+- [Cursor Navigation](docs/guide/CursorNavigation.md) — XmlCursor usage
+- [XPath/XQuery](docs/guide/XPathXQuery.md) — XPath query system
+- [XML Tokens](docs/guide/XmlTokens.md) — Token types reference
+- [Bookmarks](docs/guide/Bookmarks.md) — Position bookmarks
+- [Handling xs:any](docs/guide/HandlingAny.md) — Wildcard content
+- [Tools](docs/guide/Tools.md) — Command-line tools
+
 ## Running Tests
 
 ```bash
 php tests/run_tests.php
 ```
+
+## The Original
+
+Apache XMLBeans was created for Java and became an Apache Top-Level Project. It powered enterprise Java XML processing for over a decade. This PHP port brings the same architecture — schema compilation, typed binding, cursor navigation, XPath integration — to the PHP ecosystem, where nothing comparable exists.
 
 ## License
 

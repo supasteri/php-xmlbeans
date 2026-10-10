@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<statement xmlns="http://example.com/statement">
+    <deposit>
+        <date>2024-01-15</date>
+        <amount>500.00</amount>
+        <description>Payroll deposit</description>
+    </deposit>
+    <withdrawal>
+        <date>2024-01-16</date>
+        <amount>750.00</amount>
+        <description>Rent payment</description>
+    </withdrawal>
+    <deposit>
+        <date>2024-01-20</date>
+        <amount>200.00</amount>
+        <description>Freelance payment</description>
+    </deposit>
+    <withdrawal>
+        <date>2024-01-22</date>
+        <amount>50.00</amount>
+        <description>Groceries</description>
+    </withdrawal>
+    <deposit>
+        <date>2024-01-25</date>
+        <amount>1000.00</amount>
+        <description>Client payment</description>
+    </deposit>
+</statement>

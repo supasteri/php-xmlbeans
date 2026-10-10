@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<todolist xmlns="http://example.com/todolist">
+    <item priority="high">
+        <name>Buy groceries</name>
+        <description>Milk, bread, eggs</description>
+        <due-date>2024-03-20</due-date>
+        <status>pending</status>
+    </item>
+    <item priority="medium">
+        <name>Fix bug #42</name>
+        <description>NullPointer in checkout flow</description>
+        <due-date>2024-03-18</due-date>
+        <status>in-progress</status>
+    </item>
+    <item priority="low">
+        <name>Update docs</name>
+        <description>Add API reference for v2</description>
+        <due-date>2024-04-01</due-date>
+        <status>pending</status>
+    </item>
+</todolist>

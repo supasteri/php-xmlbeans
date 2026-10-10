@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="http://example.com/wildcard"
+      xmlns:ext="http://example.com/extensions">
+    <name>Main Document</name>
+    <ext:metadata>
+        <ext:author>John Doe</ext:author>
+        <ext:version>1.0</ext:version>
+        <ext:tags>
+            <ext:tag>xml</ext:tag>
+            <ext:tag>schema</ext:tag>
+        </ext:tags>
+    </ext:metadata>
+    <ext:custom-field type="text">Custom value here</ext:custom-field>
+</root>

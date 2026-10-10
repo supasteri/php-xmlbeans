@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<date-sample xmlns="http://example.com/datetime">
+    <date-val>2024-03-15</date-val>
+    <datetime-val>2024-03-15T10:30:00+02:00</datetime-val>
+    <time-val>14:30:00</time-val>
+    <duration-val>P1Y2M3DT4H5M6S</duration-val>
+    <gday-val>---15</gday-val>
+</date-sample>
